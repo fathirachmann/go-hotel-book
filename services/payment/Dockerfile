@@ -3,10 +3,11 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/service ./cmd/auth
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/service ./cmd/payment
+
 
 FROM gcr.io/distroless/base-debian12
 COPY --from=build /bin/service /service
-EXPOSE 8001
+EXPOSE 8004
 USER nonroot:nonroot
 ENTRYPOINT ["/service"]
