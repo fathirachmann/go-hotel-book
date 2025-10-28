@@ -19,4 +19,5 @@ type BookingRepo interface {
 
 type PaymentGateway interface {
 	RequestPayment(ctx context.Context, bookingID string, amount int64, userEmail string) error
+	RefundPayment(ctx context.Context, bookingID string, amount int64, reason string) error
 }
