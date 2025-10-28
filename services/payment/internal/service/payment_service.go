@@ -25,6 +25,8 @@ var (
 	ErrPaymentNotFound = errors.New("payment not found")
 	// ErrInvalidSignature indicates provider webhook failed signature validation.
 	ErrInvalidSignature = errors.New("invalid midtrans signature")
+	// ErrPaymentNotPaid indicates a refund was attempted on a non-paid transaction.
+	ErrPaymentNotPaid = errors.New("payment is not paid yet")
 )
 
 // SnapGateway abstracts Midtrans Snap client for easier testing.
@@ -193,6 +195,40 @@ func (s *PaymentService) GetByOrderID(ctx context.Context, orderID string) (*ent
 		return nil, err
 	}
 	return payment, nil
+}
+
+// Refund cancels a paid payment and records the reason.
+func (s *PaymentService) Refund(ctx context.Context, orderID, reason string) (*entity.Payment, error) {
+	if orderID == "" {
+		return nil, errors.New("orderID cannot be empty")
+	}
+
+	payment, err := s.repo.GetByOrderID(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPaymentNotFound
+		}
+		return nil, err
+	}
+
+	if payment.Status != entity.StatusPaid {
+		return nil, ErrPaymentNotPaid
+	}
+
+	if reason == "" {
+		reason = "customer requested"
+	}
+
+	payload, _ := json.Marshal(map[string]string{"reason": reason})
+
+	if err := s.repo.UpdateStatus(ctx, orderID, entity.StatusCancelled, payload, nil); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPaymentNotFound
+		}
+		return nil, err
+	}
+
+	return s.repo.GetByOrderID(ctx, orderID)
 }
 
 func (s *PaymentService) verifySignature(n MidtransNotification) error {
