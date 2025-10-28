@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	authhttp "auth/internal/http"
+	"auth/internal/handler"
 	"auth/internal/repo"
-	"auth/internal/usecase"
+	"auth/internal/service"
 	"pkg/dbx"
 	"pkg/jwtx"
 
@@ -32,8 +32,8 @@ func main() {
 
 	tokenManager := jwtx.New(jwtSecret, "auth-service")
 	userRepo := repo.NewUserRepository(db)
-	authUsecase := usecase.NewAuthUsecase(userRepo, tokenManager)
-	handler := authhttp.NewAuthHandler(authUsecase)
+	authUsecase := service.NewAuthService(userRepo, tokenManager)
+	handler := handler.NewAuthHandler(authUsecase)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {

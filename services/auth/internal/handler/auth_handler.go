@@ -1,10 +1,10 @@
-package http
+package handler
 
 import (
 	"errors"
 	"net/http"
 
-	"auth/internal/usecase"
+	"auth/internal/service"
 
 	"pkg/bcryptx"
 	"pkg/httpx"
@@ -12,14 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthHandler wires HTTP routes to the auth usecase.
 type AuthHandler struct {
-	uc usecase.AuthUsecase
+	svc service.AuthService
 }
 
-// NewAuthHandler constructs an AuthHandler instance.
-func NewAuthHandler(uc usecase.AuthUsecase) *AuthHandler {
-	return &AuthHandler{uc: uc}
+func NewAuthHandler(svc service.AuthService) *AuthHandler {
+	return &AuthHandler{svc: svc}
 }
 
 func (h *AuthHandler) UserRoutes(router *gin.Engine) {
@@ -53,7 +51,7 @@ func (h *AuthHandler) handleRegister(c *gin.Context) {
 		return
 	}
 
-	result, err := h.uc.Register(c.Request.Context(), usecase.RegisterInput{
+	result, err := h.svc.Register(c.Request.Context(), service.RegisterInput{
 		FullName: req.FullName,
 		Email:    req.Email,
 		Password: hashedPassword,
@@ -75,7 +73,7 @@ func (h *AuthHandler) handleLogin(c *gin.Context) {
 		return
 	}
 
-	result, err := h.uc.Login(c.Request.Context(), usecase.LoginInput{
+	result, err := h.svc.Login(c.Request.Context(), service.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -90,9 +88,9 @@ func (h *AuthHandler) handleLogin(c *gin.Context) {
 
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, usecase.ErrEmailAlreadyUsed):
+	case errors.Is(err, service.ErrEmailAlreadyUsed):
 		c.JSON(http.StatusConflict, httpx.ErrorResponse{Error: err.Error()})
-	case errors.Is(err, usecase.ErrInvalidCredentials):
+	case errors.Is(err, service.ErrInvalidCredentials):
 		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: "internal server error"})

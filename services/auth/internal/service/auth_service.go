@@ -1,11 +1,11 @@
-package usecase
+package service
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"auth/internal/domain"
+	"auth/internal/entity"
 	"auth/internal/repo"
 
 	"pkg/bcryptx"
@@ -33,13 +33,11 @@ type LoginInput struct {
 	Password string
 }
 
-// AuthResult packs user-facing fields and freshly issued access token.
 type AuthResult struct {
 	AccessToken string       `json:"access_token"`
 	User        *UserPayload `json:"user"`
 }
 
-// UserPayload is a thin representation of the account exposed through APIs.
 type UserPayload struct {
 	ID       string `json:"id"`
 	FullName string `json:"full_name"`
@@ -47,23 +45,21 @@ type UserPayload struct {
 	Role     string `json:"role"`
 }
 
-// AuthUsecase defines the behaviour needed by HTTP handlers.
-type AuthUsecase interface {
+type AuthService interface {
 	Register(ctx context.Context, input RegisterInput) (*AuthResult, error)
 	Login(ctx context.Context, input LoginInput) (*AuthResult, error)
 }
 
-type authUsecase struct {
+type authService struct {
 	repo   repo.UserRepository
 	tokens *jwtx.TokenManager
 }
 
-// NewAuthUsecase wires repository plus token manager into an AuthUsecase.
-func NewAuthUsecase(repo repo.UserRepository, tokens *jwtx.TokenManager) AuthUsecase {
-	return &authUsecase{repo: repo, tokens: tokens}
+func NewAuthService(repo repo.UserRepository, tokens *jwtx.TokenManager) AuthService {
+	return &authService{repo: repo, tokens: tokens}
 }
 
-func (uc *authUsecase) Register(ctx context.Context, input RegisterInput) (*AuthResult, error) {
+func (uc *authService) Register(ctx context.Context, input RegisterInput) (*AuthResult, error) {
 	email := strings.TrimSpace(strings.ToLower(input.Email))
 	if email == "" || strings.TrimSpace(input.Password) == "" || strings.TrimSpace(input.FullName) == "" {
 		return nil, ErrInvalidCredentials
@@ -85,7 +81,7 @@ func (uc *authUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 		role = defaultRole
 	}
 
-	user := &domain.User{
+	user := &entity.User{
 		FullName:       strings.TrimSpace(input.FullName),
 		Email:          email,
 		HashedPassword: hashed,
@@ -104,7 +100,7 @@ func (uc *authUsecase) Register(ctx context.Context, input RegisterInput) (*Auth
 	return buildAuthResult(user, token), nil
 }
 
-func (uc *authUsecase) Login(ctx context.Context, input LoginInput) (*AuthResult, error) {
+func (uc *authService) Login(ctx context.Context, input LoginInput) (*AuthResult, error) {
 	email := strings.TrimSpace(strings.ToLower(input.Email))
 	if email == "" || strings.TrimSpace(input.Password) == "" {
 		return nil, ErrInvalidCredentials
@@ -130,7 +126,7 @@ func (uc *authUsecase) Login(ctx context.Context, input LoginInput) (*AuthResult
 	return buildAuthResult(user, token), nil
 }
 
-func buildAuthResult(user *domain.User, token string) *AuthResult {
+func buildAuthResult(user *entity.User, token string) *AuthResult {
 	return &AuthResult{
 		AccessToken: token,
 		User: &UserPayload{
