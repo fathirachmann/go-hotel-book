@@ -1,25 +1,27 @@
 package dbx
 
 import (
+	"errors"
 	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func OpenDatabase(schemaEnv string) *gorm.DB {
+func InitDatabase(schemaEnv string) (*gorm.DB, error) {
 	dsn := os.Getenv("DB_DSN")
-	schema := os.Getenv(schemaEnv)
+	if dsn == "" {
+		return nil, errors.New("DB_DSN env is missing")
+	}
 
-	if schema != "" {
-		dsn = dsn + "&search_path=" + schema
+	if schema := os.Getenv(schemaEnv); schema != "" {
+		dsn += "&search_path=" + schema
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return db
+	return db, nil
 }
