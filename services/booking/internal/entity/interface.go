@@ -13,7 +13,7 @@ type InventoryRepo interface {
 
 type BookingRepo interface {
 	Create(ctx context.Context, b *Booking) error
-	UpdateStatus(ctx context.Context, bookingID, status Status) error
+	UpdateStatus(ctx context.Context, bookingID string, status Status) error
 	GetByID(ctx context.Context, bookingID string) (*Booking, error)
 }
 
