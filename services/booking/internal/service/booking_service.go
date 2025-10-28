@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -16,10 +14,10 @@ type Service struct {
 }
 
 var (
-	// ErrBookingNotFound signals caller the booking cannot be located.
-	ErrBookingNotFound = errors.New("booking not found")
-	// ErrInvalidBookingStatus indicates the booking is not in the expected state for the requested mutation.
-	ErrInvalidBookingStatus = errors.New("booking status does not allow this action")
+	// ErrBookingNotPaid is returned when booking is not in paid state.
+	ErrBookingNotPaid = errors.New("booking is not paid yet")
+	// ErrBookingAlreadyHandled is returned when booking already cancelled or checked-in.
+	ErrBookingAlreadyHandled = errors.New("booking already handled")
 )
 
 func NewService(inv entity.InventoryRepo, repo entity.BookingRepo, pay entity.PaymentGateway) *Service {
@@ -40,20 +38,32 @@ func daysBetween(ci, co time.Time) int {
 
 func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*entity.Booking, error) {
 	nights := daysBetween(in.CheckInDate, in.CheckOutDate)
+	if nights <= 0 {
+		return nil, errors.New("invalid stay range")
+	}
+
+	if len(in.Items) == 0 {
+		return nil, errors.New("booking items cannot be empty")
+	}
+
 	var total int64
-	for d := 0; d < nights; d++ {
-		day := in.CheckInDate.AddDate(0, 0, d)
-		for _, it := range in.Items {
-			if err := s.inv.Hold(it.RoomTypeID, in.CheckInDate, in.CheckOutDate, it.Quantity); err != nil {
-				return nil, err
-			}
-			p, err := s.inv.Price(it.RoomTypeID, day)
+
+	for _, it := range in.Items {
+		// reserve stock for the whole stay
+		if err := s.inv.Hold(it.RoomTypeID, in.CheckInDate, in.CheckOutDate, it.Quantity); err != nil {
+			return nil, err
+		}
+
+		for d := 0; d < nights; d++ {
+			day := in.CheckInDate.AddDate(0, 0, d)
+			price, err := s.inv.Price(it.RoomTypeID, day)
 			if err != nil {
 				return nil, err
 			}
-			total += p * int64(it.Quantity)
+			total += price * int64(it.Quantity)
 		}
 	}
+
 	b := &entity.Booking{
 		UserID:       in.UserID,
 		CheckInDate:  in.CheckInDate,
@@ -76,14 +86,15 @@ func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*en
 func (s *Service) CheckIn(ctx context.Context, bookingID string) (*entity.Booking, error) {
 	booking, err := s.repo.GetByID(ctx, bookingID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrBookingNotFound
-		}
 		return nil, err
 	}
 
+	if booking.Status == entity.StatusCheckedIn {
+		return nil, ErrBookingAlreadyHandled
+	}
+
 	if booking.Status != entity.StatusPaid {
-		return nil, ErrInvalidBookingStatus
+		return nil, ErrBookingNotPaid
 	}
 
 	if err := s.repo.UpdateStatus(ctx, booking.ID, entity.StatusCheckedIn); err != nil {
@@ -97,14 +108,19 @@ func (s *Service) CheckIn(ctx context.Context, bookingID string) (*entity.Bookin
 func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity.Booking, error) {
 	booking, err := s.repo.GetByID(ctx, bookingID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrBookingNotFound
-		}
 		return nil, err
 	}
 
+	if booking.Status == entity.StatusCancelled {
+		return nil, ErrBookingAlreadyHandled
+	}
+
 	if booking.Status != entity.StatusPaid {
-		return nil, ErrInvalidBookingStatus
+		return nil, ErrBookingNotPaid
+	}
+
+	if reason == "" {
+		reason = "user requested"
 	}
 
 	if err := s.pay.RefundPayment(ctx, booking.ID, booking.Total, reason); err != nil {

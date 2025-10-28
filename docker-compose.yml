@@ -15,7 +15,9 @@ services:
       retries: 5
 
   auth:
-    build: ./services/auth
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
     environment:
       PORT: 8001
       DB_DSN: ${POSTGRES_DSN}
@@ -26,7 +28,9 @@ services:
       postgres: { condition: service_healthy }
 
   catalog:
-    build: ./services/catalog
+    build:
+      context: .
+      dockerfile: services/catalog/Dockerfile
     environment:
       PORT: 8002
       DB_DSN: ${POSTGRES_DSN}
@@ -36,7 +40,9 @@ services:
       postgres: { condition: service_healthy }
 
   booking:
-    build: ./services/booking
+    build:
+      context: .
+      dockerfile: services/booking/Dockerfile
     environment:
       PORT: 8003
       DB_DSN: ${POSTGRES_DSN}
@@ -47,7 +53,9 @@ services:
         condition: service_healthy
 
   payment:
-    build: ./services/payment
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile
     environment:
       PORT: 8004
       DB_DSN: ${POSTGRES_DSN}

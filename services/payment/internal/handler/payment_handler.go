@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 
@@ -118,6 +119,10 @@ type mockStatusRequest struct {
 	Status string `json:"status" binding:"required"`
 }
 
+type refundRequest struct {
+	Reason string `json:"reason"`
+}
+
 // MockStatus is convenient endpoint to simulate provider callbacks locally.
 func (h *Handler) MockStatus(c *gin.Context) {
 	orderID := c.Param("orderID")
@@ -147,10 +152,40 @@ func (h *Handler) MockStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
 }
 
+// PostRefund marks a paid transaction as refunded.
+func (h *Handler) PostRefund(c *gin.Context) {
+	orderID := c.Param("orderID")
+	var req refundRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		if errors.Is(err, io.EOF) {
+			// empty body allowed
+		} else {
+			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
+			return
+		}
+	}
+
+	payment, err := h.svc.Refund(c.Request.Context(), orderID, req.Reason)
+	if err != nil {
+		switch err {
+		case service.ErrPaymentNotFound:
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
+		case service.ErrPaymentNotPaid:
+			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
+}
+
 // BindRoutes attaches payment routes to gin engine.
 func (h *Handler) BindRoutes(r *gin.Engine) {
 	r.POST("/payments", h.PostPayment)
 	r.GET("/payments/:orderID", h.GetPayment)
 	r.POST("/payments/mock/:orderID", h.MockStatus)
+	r.POST("/payments/:orderID/refund", h.PostRefund)
 	r.POST("/payments/webhook/midtrans", h.MidtransWebhook)
 }

@@ -11,6 +11,7 @@ import (
 	"pkg/httpx"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -61,10 +62,10 @@ func (h *Handler) PostCheckIn(c *gin.Context) {
 	bookingID := c.Param("id")
 	booking, err := h.svc.CheckIn(c.Request.Context(), bookingID)
 	if err != nil {
-		switch err {
-		case service.ErrBookingNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		case service.ErrInvalidBookingStatus:
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+		case errors.Is(err, service.ErrBookingNotPaid), errors.Is(err, service.ErrBookingAlreadyHandled):
 			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
@@ -90,10 +91,10 @@ func (h *Handler) PostRefund(c *gin.Context) {
 
 	booking, err := h.svc.Refund(c.Request.Context(), bookingID, req.Reason)
 	if err != nil {
-		switch err {
-		case service.ErrBookingNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		case service.ErrInvalidBookingStatus:
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+		case errors.Is(err, service.ErrBookingNotPaid), errors.Is(err, service.ErrBookingAlreadyHandled):
 			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
