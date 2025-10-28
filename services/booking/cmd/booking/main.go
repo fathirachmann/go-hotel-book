@@ -6,21 +6,30 @@ import (
 	"booking/internal/repo"
 	"booking/internal/service"
 	"context"
+	"log"
+	"net/http"
 	"os"
+
 	"pkg/dbx"
 
 	"github.com/gin-gonic/gin"
 )
 
-// dummy payment publisher to keep compile
 type noopPay struct{}
 
 func (noopPay) RequestPayment(ctx context.Context, bookingID string, amount int64, email string) error {
 	return nil
 }
 
+func (noopPay) RefundPayment(ctx context.Context, bookingID string, amount int64, reason string) error {
+	return nil
+}
+
 func main() {
-	db, _ := dbx.InitDatabase("DB_SCHEMA")
+	db, err := dbx.InitDatabase("DB_SCHEMA")
+	if err != nil {
+		log.Fatalf("connect booking database: %v", err)
+	}
 	bookingRepo := repo.NewBookingRepository(db)
 	invRepo := /* TODO: implement inventory repo */ entity.InventoryRepo(nil)
 	pay := noopPay{}
@@ -29,13 +38,17 @@ func main() {
 	r := gin.Default()
 	h := handler.NewHandler(svc)
 
-	r.POST("/bookings", h.PostBooking)
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	h.BindRoutes(r)
 
 	port := os.Getenv("PORT")
-
 	if port == "" {
 		port = "8003"
 	}
 
-	r.Run(":" + port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("booking service failed: %v", err)
+	}
 }
