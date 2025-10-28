@@ -14,7 +14,19 @@ import (
 	"gorm.io/gorm"
 )
 
-const defaultRole = "customer"
+const (
+	RoleUser  = "USER"
+	RoleStaff = "STAFF"
+	RoleAdmin = "ADMIN"
+)
+
+var allowedRoles = map[string]struct{}{
+	RoleUser:  {},
+	RoleStaff: {},
+	RoleAdmin: {},
+}
+
+const defaultRole = RoleUser
 
 var (
 	ErrEmailAlreadyUsed   = errors.New("email already registered")
@@ -76,8 +88,8 @@ func (uc *authService) Register(ctx context.Context, input RegisterInput) (*Auth
 		return nil, err
 	}
 
-	role := strings.TrimSpace(input.Role)
-	if role == "" {
+	role := strings.TrimSpace(strings.ToUpper(input.Role))
+	if _, ok := allowedRoles[role]; !ok {
 		role = defaultRole
 	}
 

@@ -30,7 +30,6 @@ type registerRequest struct {
 	FullName string `json:"full_name" binding:"required,min=3"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role"`
 }
 
 type loginRequest struct {
@@ -55,7 +54,6 @@ func (h *AuthHandler) handleRegister(c *gin.Context) {
 		FullName: req.FullName,
 		Email:    req.Email,
 		Password: hashedPassword,
-		Role:     req.Role,
 	})
 
 	if err != nil {
