@@ -63,3 +63,20 @@ func (r *BookingRepository) GetByID(ctx context.Context, id string) (*entity.Boo
 	}
 	return &b, nil
 }
+
+func (r *BookingRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// delete items first
+		if err := tx.Where("booking_id = ?", id).Delete(&entity.BookingItem{}).Error; err != nil {
+			return err
+		}
+		res := tx.Delete(&entity.Booking{}, "id = ?", id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+}

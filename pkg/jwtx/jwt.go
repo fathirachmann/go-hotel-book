@@ -21,6 +21,7 @@ type TokenManager struct {
 
 type AccessClaims struct {
 	UserID string `json:"user_id"`
+	Email  string `json:"email"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -32,10 +33,11 @@ func New(secret, issuer string) *TokenManager {
 	}
 }
 
-func (m *TokenManager) SignToken(userID, role string) (string, error) {
+func (m *TokenManager) SignToken(userID, email, role string) (string, error) {
 	now := time.Now().UTC()
 	claims := AccessClaims{
 		UserID: userID,
+		Email:  email,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:   m.Issuer,

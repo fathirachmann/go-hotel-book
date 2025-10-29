@@ -25,12 +25,11 @@ func NewHandler(s *service.Service, tm *jwtx.TokenManager) *Handler {
 }
 
 type CreateRequest struct {
-	UserID   string                     `json:"user_id" binding:"required"`
 	CheckIn  time.Time                  `json:"check_in" binding:"required"`
 	CheckOut time.Time                  `json:"check_out" binding:"required"`
 	Guests   int                        `json:"guests"`
+	FullName string                     `json:"full_name" binding:"required"`
 	Items    []entity.CreateBookingItem `json:"items" binding:"required,min=1,dive"`
-	Email    string                     `json:"email" binding:"required,email"`
 }
 
 type refundRequest struct {
@@ -43,14 +42,21 @@ func (h *Handler) PostBooking(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-
+	// derive user from token
+	userID, err := h.requireUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	email := h.userEmail(c)
 	b, err := h.svc.Create(c.Request.Context(), entity.CreateBookingInput{
-		UserID:   req.UserID,
+		UserID:   userID,
 		CheckIn:  req.CheckIn,
 		CheckOut: req.CheckOut,
 		Guests:   req.Guests,
+		FullName: req.FullName,
+		Email:    email,
 		Items:    req.Items,
-		Email:    req.Email,
 	})
 
 	if err != nil {
@@ -164,9 +170,71 @@ func (h *Handler) getUserID(c *gin.Context) (string, error) {
 	return claims.UserID, nil
 }
 
+// authMiddleware ensures a valid bearer token and sets user_id in context.
+func (h *Handler) authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, err := h.getClaims(c)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+			return
+		}
+		c.Set("user_id", claims.UserID)
+		if claims.Email != "" {
+			c.Set("email", claims.Email)
+		}
+		c.Next()
+	}
+}
+
+// getClaims extracts full claims from Authorization bearer token.
+func (h *Handler) getClaims(c *gin.Context) (*jwtx.AccessClaims, error) {
+	if h.tm == nil {
+		return nil, errors.New("auth not configured")
+	}
+	tok, err := jwtx.ExtractToken(c.Request)
+	if err != nil {
+		return nil, err
+	}
+	claims, err := h.tm.VerifyToken(tok)
+	if err != nil {
+		return nil, err
+	}
+	if claims == nil || claims.UserID == "" {
+		return nil, errors.New("invalid token claims")
+	}
+	return claims, nil
+}
+
+// requireUser retrieves user_id from context (populated by authMiddleware) or parses token as fallback.
+func (h *Handler) requireUser(c *gin.Context) (string, error) {
+	if v, ok := c.Get("user_id"); ok {
+		if s, ok := v.(string); ok && s != "" {
+			return s, nil
+		}
+	}
+	claims, err := h.getClaims(c)
+	if err != nil {
+		return "", err
+	}
+	return claims.UserID, nil
+}
+
+// userEmail returns email from context or token claims.
+func (h *Handler) userEmail(c *gin.Context) string {
+	if v, ok := c.Get("email"); ok {
+		if s, ok := v.(string); ok && s != "" {
+			return s
+		}
+	}
+	if claims, err := h.getClaims(c); err == nil && claims.Email != "" {
+		return claims.Email
+	}
+	return ""
+}
+
 // GetMyBookings lists bookings owned by the logged-in user.
 func (h *Handler) GetMyBookings(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := h.requireUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
 		return
@@ -181,7 +249,7 @@ func (h *Handler) GetMyBookings(c *gin.Context) {
 
 // GetBookingDetail returns a user's booking detail by ID.
 func (h *Handler) GetBookingDetail(c *gin.Context) {
-	userID, err := h.getUserID(c)
+	userID, err := h.requireUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
 		return
@@ -200,4 +268,26 @@ func (h *Handler) GetBookingDetail(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, httpx.OK(booking))
+}
+
+// DeleteBooking removes a user's booking by ID.
+func (h *Handler) DeleteBooking(c *gin.Context) {
+	userID, err := h.requireUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	id := c.Param("id")
+	if err := h.svc.DeleteMine(c.Request.Context(), id, userID); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+		case err.Error() == "forbidden":
+			c.JSON(http.StatusForbidden, httpx.ErrorResponse{Error: "forbidden"})
+		default:
+			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

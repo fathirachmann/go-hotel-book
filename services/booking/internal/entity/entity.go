@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,14 @@ func (b *Booking) BeforeCreate(_ *gorm.DB) error {
 	if b.ID == "" {
 		b.ID = uuid.New().String()
 	}
+	if b.Code == "" {
+		// Generate a unique human-friendly code
+		raw := strings.ReplaceAll(uuid.New().String(), "-", "")
+		if len(raw) > 10 {
+			raw = raw[:10]
+		}
+		b.Code = "BK-" + strings.ToUpper(raw)
+	}
 	return nil
 }
 
@@ -63,10 +72,11 @@ type CreateBookingItem struct {
 }
 
 type CreateBookingInput struct {
-	UserID   string              `json:"user_id" binding:"required"`
+	UserID   string              // set by handler from JWT
 	CheckIn  time.Time           `json:"check_in" binding:"required"`
 	CheckOut time.Time           `json:"check_out" binding:"required"`
 	Guests   int                 `json:"guests"`
-	Email    string              `json:"email" binding:"required,email"`
+	FullName string              `json:"full_name"`
+	Email    string              // set by handler from JWT
 	Items    []CreateBookingItem `json:"items" binding:"required,min=1,dive"`
 }
