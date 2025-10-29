@@ -47,6 +47,7 @@ services:
       PORT: 8003
       DB_DSN: ${DB_DSN}
       DB_SCHEMA: booking
+      JWT_SECRET: ${JWT_SECRET}
     ports: ["8003:8003"]
     depends_on:
       postgres:

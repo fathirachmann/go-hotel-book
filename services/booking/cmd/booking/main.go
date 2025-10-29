@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"pkg/dbx"
+	"pkg/jwtx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,13 +31,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect booking database: %v", err)
 	}
+	// Dev reset: drop tables explicitly to avoid legacy PK constraints
+	_ = db.Migrator().DropTable(&entity.BookingItem{}, &entity.Booking{})
+	_ = db.Exec("DROP TABLE IF EXISTS \"booking\".\"booking_items\" CASCADE").Error
+	_ = db.Exec("DROP TABLE IF EXISTS \"booking\".\"bookings\" CASCADE").Error
+	if err := db.AutoMigrate(&entity.Booking{}, &entity.BookingItem{}); err != nil {
+		log.Fatalf("auto migrate booking schema: %v", err)
+	}
 	bookingRepo := repo.NewBookingRepository(db)
-	invRepo := /* TODO: implement inventory repo */ entity.InventoryRepo(nil)
+	invRepo := repo.NewInventoryHTTPRepo("http://catalog:8002")
 	pay := noopPay{}
 	svc := service.NewService(invRepo, bookingRepo, pay)
 
 	r := gin.Default()
-	h := handler.NewHandler(svc)
+	// JWT
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "dev-secret"
+	}
+	tm := jwtx.New(secret, "booking")
+	h := handler.NewHandler(svc, tm)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

@@ -6,15 +6,16 @@ import (
 )
 
 type InventoryRepo interface {
-	Hold(roomTypeID string, checkIn, checkOut time.Time, quantity int) error
-	Release(roomTypeID string, checkIn, checkOut time.Time, quantity int) error
-	Price(roomTypeID string, d time.Time) (int64, error)
+	Hold(roomTypeID int, checkIn, checkOut time.Time, quantity int) error
+	Release(roomTypeID int, checkIn, checkOut time.Time, quantity int) error
+	Price(roomTypeID int, d time.Time) (int64, error)
 }
 
 type BookingRepo interface {
 	Create(ctx context.Context, b *Booking) error
 	UpdateStatus(ctx context.Context, bookingID string, status Status) error
 	GetByID(ctx context.Context, bookingID string) (*Booking, error)
+	ListByUser(ctx context.Context, userID string) ([]Booking, error)
 }
 
 type PaymentGateway interface {

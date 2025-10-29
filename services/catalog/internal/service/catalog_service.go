@@ -4,13 +4,12 @@ import (
 	"catalog/internal/entity"
 	"catalog/internal/repo"
 	"context"
-	"fmt"
 	"time"
 )
 
 // AvailabilityItem represents the availability response for a room type.
 type AvailabilityItem struct {
-	RoomTypeID    string `json:"room_type_id"`
+	RoomTypeID    int    `json:"room_type_id"`
 	Name          string `json:"name"`
 	Capacity      int    `json:"capacity"`
 	Available     int    `json:"available"`
@@ -148,7 +147,7 @@ func (s *CatalogService) Availability(ctx context.Context, from, to time.Time, g
 		}
 
 		items = append(items, AvailabilityItem{
-			RoomTypeID:    fmt.Sprint(rt.ID),
+			RoomTypeID:    int(rt.ID),
 			Name:          rt.Name,
 			Capacity:      rt.Capacity,
 			Available:     minAvail,

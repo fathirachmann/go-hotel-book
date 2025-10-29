@@ -37,7 +37,7 @@ func daysBetween(ci, co time.Time) int {
 }
 
 func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*entity.Booking, error) {
-	nights := daysBetween(in.CheckInDate, in.CheckOutDate)
+	nights := daysBetween(in.CheckIn, in.CheckOut)
 	if nights <= 0 {
 		return nil, errors.New("invalid stay range")
 	}
@@ -46,31 +46,45 @@ func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*en
 		return nil, errors.New("booking items cannot be empty")
 	}
 
-	var total int64
+	var subtotal int64
+	var items []entity.BookingItem
 
 	for _, it := range in.Items {
-		// reserve stock for the whole stay
-		if err := s.inv.Hold(it.RoomTypeID, in.CheckInDate, in.CheckOutDate, it.Quantity); err != nil {
+		// Simplified: snapshot first-night price
+		perNight, err := s.inv.Price(it.RoomTypeID, in.CheckIn)
+		if err != nil {
 			return nil, err
 		}
 
-		for d := 0; d < nights; d++ {
-			day := in.CheckInDate.AddDate(0, 0, d)
-			price, err := s.inv.Price(it.RoomTypeID, day)
-			if err != nil {
-				return nil, err
-			}
-			total += price * int64(it.Quantity)
+		// optional hold (currently NO-OP implementation)
+		if err := s.inv.Hold(it.RoomTypeID, in.CheckIn, in.CheckOut, it.Quantity); err != nil {
+			return nil, err
 		}
+
+		lineTotal := int64(it.Quantity) * int64(nights) * perNight
+		subtotal += lineTotal
+		items = append(items, entity.BookingItem{
+			RoomTypeID:    it.RoomTypeID,
+			Quantity:      it.Quantity,
+			PricePerNight: perNight,
+			LineTotal:     lineTotal,
+		})
 	}
+
+	taxes := int64(0)
+	total := subtotal + taxes
 
 	b := &entity.Booking{
 		UserID:       in.UserID,
-		CheckInDate:  in.CheckInDate,
-		CheckOutDate: in.CheckOutDate,
+		CheckInDate:  in.CheckIn,
+		CheckOutDate: in.CheckOut,
 		Nights:       nights,
+		Guests:       in.Guests,
+		Subtotal:     subtotal,
+		Taxes:        taxes,
 		Total:        total,
 		Status:       entity.StatusUnpaid,
+		Items:        items,
 	}
 
 	if err := s.repo.Create(ctx, b); err != nil {
@@ -132,4 +146,21 @@ func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity
 	}
 	booking.Status = entity.StatusCancelled
 	return booking, nil
+}
+
+// ListMine returns bookings owned by the given user.
+func (s *Service) ListMine(ctx context.Context, userID string) ([]entity.Booking, error) {
+	return s.repo.ListByUser(ctx, userID)
+}
+
+// GetMineByID fetches a booking by id and ensures it belongs to the given user.
+func (s *Service) GetMineByID(ctx context.Context, bookingID, userID string) (*entity.Booking, error) {
+	b, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, err
+	}
+	if b.UserID != userID {
+		return nil, errors.New("forbidden")
+	}
+	return b, nil
 }
