@@ -14,7 +14,19 @@ import (
 	"gorm.io/gorm"
 )
 
-const defaultRole = "customer"
+const (
+	RoleUser  = "USER"
+	RoleStaff = "STAFF"
+	RoleAdmin = "ADMIN"
+)
+
+var allowedRoles = map[string]struct{}{
+	RoleUser:  {},
+	RoleStaff: {},
+	RoleAdmin: {},
+}
+
+const defaultRole = RoleUser
 
 var (
 	ErrEmailAlreadyUsed   = errors.New("email already registered")
@@ -38,15 +50,19 @@ type AuthResult struct {
 	User        *UserPayload `json:"user"`
 }
 
+// RegistrationResult contains only the created user payload (no token)
+type RegistrationResult struct {
+	User *UserPayload `json:"user"`
+}
+
 type UserPayload struct {
 	ID       string `json:"id"`
 	FullName string `json:"full_name"`
 	Email    string `json:"email"`
-	Role     string `json:"role"`
 }
 
 type AuthService interface {
-	Register(ctx context.Context, input RegisterInput) (*AuthResult, error)
+	Register(ctx context.Context, input RegisterInput) (*RegistrationResult, error)
 	Login(ctx context.Context, input LoginInput) (*AuthResult, error)
 }
 
@@ -59,13 +75,13 @@ func NewAuthService(repo repo.UserRepository, tokens *jwtx.TokenManager) AuthSer
 	return &authService{repo: repo, tokens: tokens}
 }
 
-func (uc *authService) Register(ctx context.Context, input RegisterInput) (*AuthResult, error) {
+func (svc *authService) Register(ctx context.Context, input RegisterInput) (*RegistrationResult, error) {
 	email := strings.TrimSpace(strings.ToLower(input.Email))
 	if email == "" || strings.TrimSpace(input.Password) == "" || strings.TrimSpace(input.FullName) == "" {
 		return nil, ErrInvalidCredentials
 	}
 
-	if _, err := uc.repo.FindByEmail(ctx, email); err == nil {
+	if _, err := svc.repo.FindByEmail(ctx, email); err == nil {
 		return nil, ErrEmailAlreadyUsed
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -76,8 +92,8 @@ func (uc *authService) Register(ctx context.Context, input RegisterInput) (*Auth
 		return nil, err
 	}
 
-	role := strings.TrimSpace(input.Role)
-	if role == "" {
+	role := strings.TrimSpace(strings.ToUpper(input.Role))
+	if _, ok := allowedRoles[role]; !ok {
 		role = defaultRole
 	}
 
@@ -88,25 +104,26 @@ func (uc *authService) Register(ctx context.Context, input RegisterInput) (*Auth
 		Role:           role,
 	}
 
-	if err := uc.repo.Create(ctx, user); err != nil {
+	if err := svc.repo.Create(ctx, user); err != nil {
 		return nil, err
 	}
 
-	token, err := uc.tokens.SignToken(user.ID.String(), user.Role)
-	if err != nil {
-		return nil, err
-	}
-
-	return buildAuthResult(user, token), nil
+	return &RegistrationResult{
+		User: &UserPayload{
+			ID:       user.ID.String(),
+			FullName: user.FullName,
+			Email:    user.Email,
+		},
+	}, nil
 }
 
-func (uc *authService) Login(ctx context.Context, input LoginInput) (*AuthResult, error) {
+func (svc *authService) Login(ctx context.Context, input LoginInput) (*AuthResult, error) {
 	email := strings.TrimSpace(strings.ToLower(input.Email))
 	if email == "" || strings.TrimSpace(input.Password) == "" {
 		return nil, ErrInvalidCredentials
 	}
 
-	user, err := uc.repo.FindByEmail(ctx, email)
+	user, err := svc.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrInvalidCredentials
@@ -118,7 +135,7 @@ func (uc *authService) Login(ctx context.Context, input LoginInput) (*AuthResult
 		return nil, ErrInvalidCredentials
 	}
 
-	token, err := uc.tokens.SignToken(user.ID.String(), user.Role)
+	token, err := svc.tokens.SignToken(user.ID.String(), user.Email, user.Role)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +150,6 @@ func buildAuthResult(user *entity.User, token string) *AuthResult {
 			ID:       user.ID.String(),
 			FullName: user.FullName,
 			Email:    user.Email,
-			Role:     user.Role,
 		},
 	}
 }

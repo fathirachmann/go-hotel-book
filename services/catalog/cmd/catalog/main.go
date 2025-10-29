@@ -19,6 +19,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect catalog database: %v", err)
 	}
+	// Drop and recreate tables to safely migrate ID type changes in development
+	_ = db.Migrator().DropTable(&entity.RoomInventory{}, &entity.RoomType{})
 	if err := db.AutoMigrate(&entity.RoomType{}, &entity.RoomInventory{}); err != nil {
 		log.Fatalf("auto migrate catalog schema: %v", err)
 	}
@@ -29,7 +31,7 @@ func main() {
 	h := handler.NewCatalogHandler(svc)
 
 	r := gin.Default()
-	r.GET("/healthz", func(c *gin.Context) {
+	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.POST("/internal/seed", h.Seed)

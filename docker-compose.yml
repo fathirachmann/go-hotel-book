@@ -15,10 +15,12 @@ services:
       retries: 5
 
   auth:
-    build: ./services/auth
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
     environment:
       PORT: 8001
-      DB_DSN: ${POSTGRES_DSN}
+      DB_DSN: ${DB_DSN}
       DB_SCHEMA: auth
       JWT_SECRET: ${JWT_SECRET}
     ports: ["8001:8001"]
@@ -26,33 +28,40 @@ services:
       postgres: { condition: service_healthy }
 
   catalog:
-    build: ./services/catalog
+    build:
+      context: .
+      dockerfile: services/catalog/Dockerfile
     environment:
       PORT: 8002
-      DB_DSN: ${POSTGRES_DSN}
+      DB_DSN: ${DB_DSN}
       DB_SCHEMA: catalog
     ports: ["8002:8002"]
     depends_on:
       postgres: { condition: service_healthy }
 
   booking:
-    build: ./services/booking
+    build:
+      context: .
+      dockerfile: services/booking/Dockerfile
     environment:
       PORT: 8003
-      DB_DSN: ${POSTGRES_DSN}
+      DB_DSN: ${DB_DSN}
       DB_SCHEMA: booking
+      JWT_SECRET: ${JWT_SECRET}
     ports: ["8003:8003"]
     depends_on:
       postgres:
         condition: service_healthy
 
   payment:
-    build: ./services/payment
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile
     environment:
       PORT: 8004
-      DB_DSN: ${POSTGRES_DSN}
+      DB_DSN: ${DB_DSN}
       DB_SCHEMA: payment
-      MIDTRANS_CLIENT_KEY: ${MIDTRANS_SERVER_KEY}
+      MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY}
       MIDTRANS_ENV: sandbox
     ports: ["8004:8004"]
     depends_on:

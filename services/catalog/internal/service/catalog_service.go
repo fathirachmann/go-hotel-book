@@ -9,7 +9,7 @@ import (
 
 // AvailabilityItem represents the availability response for a room type.
 type AvailabilityItem struct {
-	RoomTypeID    string `json:"room_type_id"`
+	RoomTypeID    int    `json:"room_type_id"`
 	Name          string `json:"name"`
 	Capacity      int    `json:"capacity"`
 	Available     int    `json:"available"`
@@ -43,11 +43,20 @@ func daysBetween(from, to time.Time) int {
 
 // SeedSample seeds basic room types and inventory window for quick demos.
 func (s *CatalogService) SeedSample(ctx context.Context) error {
+	// Reset existing seed data (inventories first, then room types)
+	if err := s.inventory.DeleteAll(ctx); err != nil {
+		return err
+	}
+	if err := s.roomTypes.DeleteAll(ctx); err != nil {
+		return err
+	}
 
-	// Seeders
+	// Seed some basic room types
 	samples := []entity.RoomType{
 		{Name: "Deluxe", Description: "Queen bed", BasePrice: 750000, Capacity: 2},
-		{Name: "Suite", Description: "King bed with living area", BasePrice: 1550000, Capacity: 3},
+		{Name: "Suite", Description: "King bed + living area", BasePrice: 1550000, Capacity: 3},
+		{Name: "Family", Description: "2 Queen beds", BasePrice: 1200000, Capacity: 4},
+		{Name: "Standard", Description: "Cozy room", BasePrice: 550000, Capacity: 2},
 	}
 
 	for i := range samples {
@@ -61,9 +70,11 @@ func (s *CatalogService) SeedSample(ctx context.Context) error {
 		return err
 	}
 
+	// Seed next 30 days of inventory with simple weekend price overrides (+15%)
 	today := s.clock().Truncate(24 * time.Hour)
+	nights := 30
 	for _, rt := range types {
-		for i := 0; i < 7; i++ {
+		for i := 0; i < nights; i++ {
 			day := today.AddDate(0, 0, i)
 			inv := entity.RoomInventory{
 				RoomTypeID:     rt.ID,
@@ -71,6 +82,14 @@ func (s *CatalogService) SeedSample(ctx context.Context) error {
 				TotalRooms:     10,
 				AvailableRooms: 10,
 			}
+
+			// Weekend override: Friday or Saturday +15%
+			wd := day.Weekday()
+			if wd == time.Friday || wd == time.Saturday {
+				override := int64(float64(rt.BasePrice) * 1.15)
+				inv.PriceOverride = &override
+			}
+
 			if err := s.inventory.Upsert(ctx, &inv); err != nil {
 				return err
 			}
@@ -98,7 +117,7 @@ func (s *CatalogService) Availability(ctx context.Context, from, to time.Time, g
 			continue
 		}
 
-		minAvail, err := s.inventory.MinAvailable(ctx, rt.ID.String(), from, to)
+		minAvail, err := s.inventory.MinAvailable(ctx, rt.ID, from, to)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +125,7 @@ func (s *CatalogService) Availability(ctx context.Context, from, to time.Time, g
 			continue
 		}
 
-		overrides, err := s.inventory.Prices(ctx, rt.ID.String(), from, to)
+		overrides, err := s.inventory.Prices(ctx, rt.ID, from, to)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +147,7 @@ func (s *CatalogService) Availability(ctx context.Context, from, to time.Time, g
 		}
 
 		items = append(items, AvailabilityItem{
-			RoomTypeID:    rt.ID.String(),
+			RoomTypeID:    int(rt.ID),
 			Name:          rt.Name,
 			Capacity:      rt.Capacity,
 			Available:     minAvail,

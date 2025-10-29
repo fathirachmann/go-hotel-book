@@ -12,8 +12,9 @@ import (
 // InventoryRepository exposes per-day stock persistence.
 type InventoryRepository interface {
 	Upsert(ctx context.Context, inv *entity.RoomInventory) error
-	MinAvailable(ctx context.Context, roomTypeID string, from, to time.Time) (int, error)
-	Prices(ctx context.Context, roomTypeID string, from, to time.Time) ([]int64, error)
+	MinAvailable(ctx context.Context, roomTypeID uint, from, to time.Time) (int, error)
+	Prices(ctx context.Context, roomTypeID uint, from, to time.Time) ([]int64, error)
+	DeleteAll(ctx context.Context) error
 }
 
 type inventoryRepository struct {
@@ -34,7 +35,7 @@ func (r *inventoryRepository) Upsert(ctx context.Context, inv *entity.RoomInvent
 		Create(inv).Error
 }
 
-func (r *inventoryRepository) MinAvailable(ctx context.Context, roomTypeID string, from, to time.Time) (int, error) {
+func (r *inventoryRepository) MinAvailable(ctx context.Context, roomTypeID uint, from, to time.Time) (int, error) {
 	var minAvail *int
 	if err := r.db.WithContext(ctx).
 		Model(&entity.RoomInventory{}).
@@ -49,7 +50,7 @@ func (r *inventoryRepository) MinAvailable(ctx context.Context, roomTypeID strin
 	return *minAvail, nil
 }
 
-func (r *inventoryRepository) Prices(ctx context.Context, roomTypeID string, from, to time.Time) ([]int64, error) {
+func (r *inventoryRepository) Prices(ctx context.Context, roomTypeID uint, from, to time.Time) ([]int64, error) {
 	var rows []entity.RoomInventory
 	if err := r.db.WithContext(ctx).
 		Where("room_type_id = ? AND inv_date >= ? AND inv_date < ?", roomTypeID, from, to).
@@ -66,4 +67,8 @@ func (r *inventoryRepository) Prices(ctx context.Context, roomTypeID string, fro
 		prices[i] = -1
 	}
 	return prices, nil
+}
+
+func (r *inventoryRepository) DeleteAll(ctx context.Context) error {
+	return r.db.WithContext(ctx).Where("1 = 1").Delete(&entity.RoomInventory{}).Error
 }

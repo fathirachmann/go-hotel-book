@@ -11,8 +11,9 @@ import (
 // RoomTypeRepository exposes persistence operations for room types.
 type RoomTypeRepository interface {
 	List(ctx context.Context) ([]entity.RoomType, error)
-	GetByIDs(ctx context.Context, ids []string) ([]entity.RoomType, error)
+	GetByIDs(ctx context.Context, ids []uint) ([]entity.RoomType, error)
 	Upsert(ctx context.Context, roomType *entity.RoomType) error
+	DeleteAll(ctx context.Context) error
 }
 
 type roomTypeRepository struct {
@@ -32,7 +33,7 @@ func (r *roomTypeRepository) List(ctx context.Context) ([]entity.RoomType, error
 	return out, nil
 }
 
-func (r *roomTypeRepository) GetByIDs(ctx context.Context, ids []string) ([]entity.RoomType, error) {
+func (r *roomTypeRepository) GetByIDs(ctx context.Context, ids []uint) ([]entity.RoomType, error) {
 	var out []entity.RoomType
 	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&out).Error; err != nil {
 		return nil, err
@@ -47,4 +48,9 @@ func (r *roomTypeRepository) Upsert(ctx context.Context, roomType *entity.RoomTy
 			DoUpdates: clause.AssignmentColumns([]string{"name", "description", "base_price", "capacity"}),
 		}).
 		Create(roomType).Error
+}
+
+func (r *roomTypeRepository) DeleteAll(ctx context.Context) error {
+	// Delete all room types (ensure inventories are deleted first to avoid FK issues)
+	return r.db.WithContext(ctx).Where("1 = 1").Delete(&entity.RoomType{}).Error
 }

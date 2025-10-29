@@ -10,8 +10,8 @@ import (
 // RoomInventory captures day-level availability and pricing overrides.
 type RoomInventory struct {
 	ID             uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	RoomTypeID     uuid.UUID `gorm:"type:uuid;index;not null" json:"room_type_id"`
-	InvDate        time.Time `gorm:"type:date;index;not null" json:"inv_date"`
+	RoomTypeID     uint      `gorm:"index:uniq_rt_date,unique;not null" json:"room_type_id"`
+	InvDate        time.Time `gorm:"type:date;index:uniq_rt_date,unique;not null" json:"inv_date"`
 	TotalRooms     int       `gorm:"not null" json:"total_rooms"`
 	AvailableRooms int       `gorm:"not null" json:"available_rooms"`
 	PriceOverride  *int64    `json:"price_override"`

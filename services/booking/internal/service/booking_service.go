@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -16,10 +14,10 @@ type Service struct {
 }
 
 var (
-	// ErrBookingNotFound signals caller the booking cannot be located.
-	ErrBookingNotFound = errors.New("booking not found")
-	// ErrInvalidBookingStatus indicates the booking is not in the expected state for the requested mutation.
-	ErrInvalidBookingStatus = errors.New("booking status does not allow this action")
+	// ErrBookingNotPaid is returned when booking is not in paid state.
+	ErrBookingNotPaid = errors.New("booking is not paid yet")
+	// ErrBookingAlreadyHandled is returned when booking already cancelled or checked-in.
+	ErrBookingAlreadyHandled = errors.New("booking already handled")
 )
 
 func NewService(inv entity.InventoryRepo, repo entity.BookingRepo, pay entity.PaymentGateway) *Service {
@@ -39,28 +37,54 @@ func daysBetween(ci, co time.Time) int {
 }
 
 func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*entity.Booking, error) {
-	nights := daysBetween(in.CheckInDate, in.CheckOutDate)
-	var total int64
-	for d := 0; d < nights; d++ {
-		day := in.CheckInDate.AddDate(0, 0, d)
-		for _, it := range in.Items {
-			if err := s.inv.Hold(it.RoomTypeID, in.CheckInDate, in.CheckOutDate, it.Quantity); err != nil {
-				return nil, err
-			}
-			p, err := s.inv.Price(it.RoomTypeID, day)
-			if err != nil {
-				return nil, err
-			}
-			total += p * int64(it.Quantity)
-		}
+	nights := daysBetween(in.CheckIn, in.CheckOut)
+	if nights <= 0 {
+		return nil, errors.New("invalid stay range")
 	}
+
+	if len(in.Items) == 0 {
+		return nil, errors.New("booking items cannot be empty")
+	}
+
+	var subtotal int64
+	var items []entity.BookingItem
+
+	for _, it := range in.Items {
+		// Simplified: snapshot first-night price
+		perNight, err := s.inv.Price(it.RoomTypeID, in.CheckIn)
+		if err != nil {
+			return nil, err
+		}
+
+		// optional hold (currently NO-OP implementation)
+		if err := s.inv.Hold(it.RoomTypeID, in.CheckIn, in.CheckOut, it.Quantity); err != nil {
+			return nil, err
+		}
+
+		lineTotal := int64(it.Quantity) * int64(nights) * perNight
+		subtotal += lineTotal
+		items = append(items, entity.BookingItem{
+			RoomTypeID:    it.RoomTypeID,
+			Quantity:      it.Quantity,
+			PricePerNight: perNight,
+			LineTotal:     lineTotal,
+		})
+	}
+
+	taxes := int64(0)
+	total := subtotal + taxes
+
 	b := &entity.Booking{
 		UserID:       in.UserID,
-		CheckInDate:  in.CheckInDate,
-		CheckOutDate: in.CheckOutDate,
+		CheckInDate:  in.CheckIn,
+		CheckOutDate: in.CheckOut,
 		Nights:       nights,
+		Guests:       in.Guests,
+		Subtotal:     subtotal,
+		Taxes:        taxes,
 		Total:        total,
 		Status:       entity.StatusUnpaid,
+		Items:        items,
 	}
 
 	if err := s.repo.Create(ctx, b); err != nil {
@@ -76,14 +100,15 @@ func (s *Service) Create(ctx context.Context, in entity.CreateBookingInput) (*en
 func (s *Service) CheckIn(ctx context.Context, bookingID string) (*entity.Booking, error) {
 	booking, err := s.repo.GetByID(ctx, bookingID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrBookingNotFound
-		}
 		return nil, err
 	}
 
+	if booking.Status == entity.StatusCheckedIn {
+		return nil, ErrBookingAlreadyHandled
+	}
+
 	if booking.Status != entity.StatusPaid {
-		return nil, ErrInvalidBookingStatus
+		return nil, ErrBookingNotPaid
 	}
 
 	if err := s.repo.UpdateStatus(ctx, booking.ID, entity.StatusCheckedIn); err != nil {
@@ -97,14 +122,19 @@ func (s *Service) CheckIn(ctx context.Context, bookingID string) (*entity.Bookin
 func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity.Booking, error) {
 	booking, err := s.repo.GetByID(ctx, bookingID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrBookingNotFound
-		}
 		return nil, err
 	}
 
+	if booking.Status == entity.StatusCancelled {
+		return nil, ErrBookingAlreadyHandled
+	}
+
 	if booking.Status != entity.StatusPaid {
-		return nil, ErrInvalidBookingStatus
+		return nil, ErrBookingNotPaid
+	}
+
+	if reason == "" {
+		reason = "user requested"
 	}
 
 	if err := s.pay.RefundPayment(ctx, booking.ID, booking.Total, reason); err != nil {
@@ -116,4 +146,38 @@ func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity
 	}
 	booking.Status = entity.StatusCancelled
 	return booking, nil
+}
+
+// RepoUpdateStatus is an internal helper to directly set booking status via repository.
+func (s *Service) RepoUpdateStatus(ctx context.Context, bookingID string, status entity.Status) error {
+	return s.repo.UpdateStatus(ctx, bookingID, status)
+}
+
+// ListMine returns bookings owned by the given user.
+func (s *Service) ListMine(ctx context.Context, userID string) ([]entity.Booking, error) {
+	return s.repo.ListByUser(ctx, userID)
+}
+
+// GetMineByID fetches a booking by id and ensures it belongs to the given user.
+func (s *Service) GetMineByID(ctx context.Context, bookingID, userID string) (*entity.Booking, error) {
+	b, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, err
+	}
+	if b.UserID != userID {
+		return nil, errors.New("forbidden")
+	}
+	return b, nil
+}
+
+// DeleteMine deletes a booking if it belongs to the given user.
+func (s *Service) DeleteMine(ctx context.Context, bookingID, userID string) error {
+	b, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return err
+	}
+	if b.UserID != userID {
+		return errors.New("forbidden")
+	}
+	return s.repo.Delete(ctx, bookingID)
 }
