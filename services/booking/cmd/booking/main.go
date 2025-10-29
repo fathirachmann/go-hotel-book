@@ -31,10 +31,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect booking database: %v", err)
 	}
-	// Dev reset: drop tables explicitly to avoid legacy PK constraints
-	_ = db.Migrator().DropTable(&entity.BookingItem{}, &entity.Booking{})
-	_ = db.Exec("DROP TABLE IF EXISTS \"booking\".\"booking_items\" CASCADE").Error
-	_ = db.Exec("DROP TABLE IF EXISTS \"booking\".\"bookings\" CASCADE").Error
+	// Auto-migrate schema (no destructive drops)
 	if err := db.AutoMigrate(&entity.Booking{}, &entity.BookingItem{}); err != nil {
 		log.Fatalf("auto migrate booking schema: %v", err)
 	}

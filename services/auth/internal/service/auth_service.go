@@ -135,7 +135,7 @@ func (svc *authService) Login(ctx context.Context, input LoginInput) (*AuthResul
 		return nil, ErrInvalidCredentials
 	}
 
-	token, err := svc.tokens.SignToken(user.ID.String(), user.Role)
+	token, err := svc.tokens.SignToken(user.ID.String(), user.Email, user.Role)
 	if err != nil {
 		return nil, err
 	}

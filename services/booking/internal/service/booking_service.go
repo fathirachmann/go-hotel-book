@@ -169,3 +169,15 @@ func (s *Service) GetMineByID(ctx context.Context, bookingID, userID string) (*e
 	}
 	return b, nil
 }
+
+// DeleteMine deletes a booking if it belongs to the given user.
+func (s *Service) DeleteMine(ctx context.Context, bookingID, userID string) error {
+	b, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return err
+	}
+	if b.UserID != userID {
+		return errors.New("forbidden")
+	}
+	return s.repo.Delete(ctx, bookingID)
+}

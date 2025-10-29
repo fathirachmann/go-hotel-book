@@ -16,6 +16,7 @@ type BookingRepo interface {
 	UpdateStatus(ctx context.Context, bookingID string, status Status) error
 	GetByID(ctx context.Context, bookingID string) (*Booking, error)
 	ListByUser(ctx context.Context, userID string) ([]Booking, error)
+	Delete(ctx context.Context, bookingID string) error
 }
 
 type PaymentGateway interface {
