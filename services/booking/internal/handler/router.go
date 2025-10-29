@@ -12,4 +12,8 @@ func (h *Handler) BindRoutes(r *gin.Engine) {
 		booking.POST(":id/checkin", h.PostCheckIn)
 		booking.POST(":id/refund", h.PostRefund)
 	}
+	internal := r.Group("/internal/bookings")
+	{
+		internal.POST(":id/status", h.PostInternalUpdateStatus)
+	}
 }

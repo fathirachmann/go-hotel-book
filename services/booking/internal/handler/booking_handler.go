@@ -109,6 +109,42 @@ func (h *Handler) PostRefund(c *gin.Context) {
 	c.JSON(http.StatusOK, httpx.OK(booking))
 }
 
+// PostInternalUpdateStatus updates a booking status via internal system calls (e.g., from Payment service).
+type internalStatusRequest struct {
+	Status string `json:"status" binding:"required"`
+}
+
+func (h *Handler) PostInternalUpdateStatus(c *gin.Context) {
+	id := c.Param("id")
+	var req internalStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
+		return
+	}
+	// Map to booking entity.Status
+	var st entity.Status
+	switch req.Status {
+	case "PAID":
+		st = entity.StatusPaid
+	case "REFUNDED":
+		st = entity.StatusRefunded
+	case "CANCELLED", "EXPIRED":
+		st = entity.StatusCancelled
+	default:
+		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: "invalid status"})
+		return
+	}
+	if err := h.svc.RepoUpdateStatus(c.Request.Context(), id, st); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, httpx.OK(gin.H{"status": st}))
+}
+
 // getUserID extracts user id from Authorization bearer token.
 func (h *Handler) getUserID(c *gin.Context) (string, error) {
 	if h.tm == nil {

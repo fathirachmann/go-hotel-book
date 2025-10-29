@@ -1,191 +1,76 @@
 package handler
 
 import (
-	"bytes"
-	"errors"
-	"io"
 	"net/http"
-
-	"payment/internal/entity"
 	"payment/internal/service"
-
 	"pkg/httpx"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Handler wires HTTP routes to payment service.
-type Handler struct {
-	svc *service.PaymentService
+type Handler struct{ svc *service.Service }
+
+func NewHandler(s *service.Service) *Handler { return &Handler{svc: s} }
+
+type payRequest struct {
+	Amount int64 `json:"amount" binding:"required,gt=0"`
 }
 
-// NewHandler creates a payment HTTP handler set.
-func NewHandler(svc *service.PaymentService) *Handler {
-	return &Handler{svc: svc}
-}
-
-type createPaymentRequest struct {
-	BookingID     string `json:"booking_id" binding:"required"`
-	Amount        int64  `json:"amount" binding:"required,gt=0"`
-	CustomerEmail string `json:"customer_email" binding:"required,email"`
-	CustomerName  string `json:"customer_name"`
-}
-
-type paymentResponse struct {
-	OrderID     string `json:"order_id"`
-	BookingID   string `json:"booking_id"`
-	Amount      int64  `json:"amount"`
-	Status      string `json:"status"`
-	RedirectURL string `json:"redirect_url"`
-	SnapToken   string `json:"snap_token"`
-}
-
-func toPaymentResponse(p *entity.Payment) paymentResponse {
-	return paymentResponse{
-		OrderID:     p.OrderID,
-		BookingID:   p.BookingID,
-		Amount:      p.Amount,
-		Status:      string(p.Status),
-		RedirectURL: p.RedirectURL,
-		SnapToken:   p.SnapToken,
-	}
-}
-
-// PostPayment handles requests to initiate payment collection.
-func (h *Handler) PostPayment(c *gin.Context) {
-	var req createPaymentRequest
+func (h *Handler) CreatePayment(c *gin.Context) {
+	bookingID := c.Param("id")
+	var req payRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-
-	payment, err := h.svc.RequestPayment(c.Request.Context(), service.RequestPaymentInput{
-		BookingID:     req.BookingID,
-		Amount:        req.Amount,
-		CustomerEmail: req.CustomerEmail,
-		CustomerName:  req.CustomerName,
-	})
+	_, resp, err := h.svc.CreatePayment(c.Request.Context(), bookingID, req.Amount)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusCreated, httpx.OK(toPaymentResponse(payment)))
+	c.JSON(http.StatusOK, httpx.OK(resp))
 }
 
-// GetPayment fetches payment detail for given orderID.
-func (h *Handler) GetPayment(c *gin.Context) {
-	orderID := c.Param("orderID")
-	payment, err := h.svc.GetByOrderID(c.Request.Context(), orderID)
-	if err != nil {
-		switch err {
-		case service.ErrPaymentNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
+type webhookPayload struct {
+	OrderID           string `json:"order_id"`
+	TransactionStatus string `json:"transaction_status"`
+	GrossAmount       string `json:"gross_amount"`
+	TransactionID     string `json:"transaction_id"`
+	SignatureKey      string `json:"signature_key"`
 }
 
-// MidtransWebhook processes asynchronous payment notifications.
-func (h *Handler) MidtransWebhook(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: "failed to read request body"})
+func (h *Handler) Webhook(c *gin.Context) {
+	var payload webhookPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-
-	payment, err := h.svc.ProcessMidtransNotification(c.Request.Context(), body)
-	if err != nil {
-		switch err {
-		case service.ErrInvalidSignature:
-			c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: err.Error()})
-		case service.ErrPaymentNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		default:
-			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-		}
+	if err := h.svc.HandleMidtransWebhook(c.Request.Context(), service.MidtransWebhookPayload(payload)); err != nil {
+		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
-}
-
-type mockStatusRequest struct {
-	Status string `json:"status" binding:"required"`
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 type refundRequest struct {
-	Reason string `json:"reason"`
+	Amount int64 `json:"amount"`
 }
 
-// MockStatus is convenient endpoint to simulate provider callbacks locally.
-func (h *Handler) MockStatus(c *gin.Context) {
-	orderID := c.Param("orderID")
-	var req mockStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-		return
-	}
-
-	status, err := entity.ParseStatus(req.Status)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-		return
-	}
-
-	payment, err := h.svc.MockUpdateStatus(c.Request.Context(), orderID, status)
-	if err != nil {
-		switch err {
-		case service.ErrPaymentNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
-}
-
-// PostRefund marks a paid transaction as refunded.
-func (h *Handler) PostRefund(c *gin.Context) {
-	orderID := c.Param("orderID")
+func (h *Handler) Refund(c *gin.Context) {
+	paymentID := c.Param("id")
 	var req refundRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		if errors.Is(err, io.EOF) {
-			// empty body allowed
-		} else {
-			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-			return
-		}
+		req.Amount = 0
 	}
-
-	payment, err := h.svc.Refund(c.Request.Context(), orderID, req.Reason)
-	if err != nil {
-		switch err {
-		case service.ErrPaymentNotFound:
-			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: err.Error()})
-		case service.ErrPaymentNotPaid:
-			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
-		}
+	if err := h.svc.Refund(c.Request.Context(), paymentID, req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, httpx.OK(toPaymentResponse(payment)))
+	c.JSON(http.StatusOK, httpx.OK(gin.H{"status": "REFUNDED"}))
 }
 
-// BindRoutes attaches payment routes to gin engine.
 func (h *Handler) BindRoutes(r *gin.Engine) {
-	r.POST("/payments", h.PostPayment)
-	r.GET("/payments/:orderID", h.GetPayment)
-	r.POST("/payments/mock/:orderID", h.MockStatus)
-	r.POST("/payments/:orderID/refund", h.PostRefund)
-	r.POST("/payments/webhook/midtrans", h.MidtransWebhook)
+	r.POST("/bookings/:id/pay", h.CreatePayment)
+	r.POST("/payments/midtrans/webhook", h.Webhook)
+	r.POST("/payments/:id/refund", h.Refund)
 }

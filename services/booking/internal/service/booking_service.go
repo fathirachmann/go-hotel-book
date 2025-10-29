@@ -148,6 +148,11 @@ func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity
 	return booking, nil
 }
 
+// RepoUpdateStatus is an internal helper to directly set booking status via repository.
+func (s *Service) RepoUpdateStatus(ctx context.Context, bookingID string, status entity.Status) error {
+	return s.repo.UpdateStatus(ctx, bookingID, status)
+}
+
 // ListMine returns bookings owned by the given user.
 func (s *Service) ListMine(ctx context.Context, userID string) ([]entity.Booking, error) {
 	return s.repo.ListByUser(ctx, userID)
