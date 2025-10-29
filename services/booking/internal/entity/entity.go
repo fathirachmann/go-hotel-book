@@ -1,6 +1,11 @@
 package entity
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
 
 type Status string
 
@@ -9,35 +14,59 @@ const (
 	StatusPaid      Status = "PAID"
 	StatusCancelled Status = "CANCELLED"
 	StatusCheckedIn Status = "CHECKED_IN"
+	StatusRefunded  Status = "REFUNDED"
 )
 
 type Booking struct {
-	ID           string
-	UserID       string
-	Code         string
-	CheckInDate  time.Time
-	CheckOutDate time.Time
-	Nights       int
-	Guests       int
-	Subtotal     int64
-	Taxes        int64
-	Total        int64
-	Status       Status
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           string        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID       string        `gorm:"index" json:"user_id"`
+	Code         string        `gorm:"uniqueIndex" json:"code"`
+	CheckInDate  time.Time     `json:"check_in_date"`
+	CheckOutDate time.Time     `json:"check_out_date"`
+	Nights       int           `json:"nights"`
+	Guests       int           `json:"guests"`
+	Subtotal     int64         `json:"subtotal"`
+	Taxes        int64         `json:"taxes"`
+	Total        int64         `json:"total"`
+	Status       Status        `gorm:"index" json:"status"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	Items        []BookingItem `gorm:"foreignKey:BookingID" json:"items"`
+}
+
+func (b *Booking) BeforeCreate(_ *gorm.DB) error {
+	if b.ID == "" {
+		b.ID = uuid.New().String()
+	}
+	return nil
 }
 
 type BookingItem struct {
-	RoomTypeID    string
-	Quantity      int
-	PricePerNight int64
-	LineTotal     int64
+	ID            string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	BookingID     string `gorm:"index" json:"booking_id"`
+	RoomTypeID    int    `gorm:"index" json:"room_type_id"`
+	Quantity      int    `json:"quantity"`
+	PricePerNight int64  `json:"price_per_night"`
+	LineTotal     int64  `json:"line_total"`
+}
+
+func (bi *BookingItem) BeforeCreate(_ *gorm.DB) error {
+	if bi.ID == "" {
+		bi.ID = uuid.New().String()
+	}
+	return nil
+}
+
+type CreateBookingItem struct {
+	RoomTypeID int `json:"room_type_id" binding:"required"`
+	Quantity   int `json:"quantity" binding:"required,min=1"`
 }
 
 type CreateBookingInput struct {
-	UserID       string
-	CheckInDate  time.Time
-	CheckOutDate time.Time
-	Items        []BookingItem
-	Email        string
+	UserID   string              `json:"user_id" binding:"required"`
+	CheckIn  time.Time           `json:"check_in" binding:"required"`
+	CheckOut time.Time           `json:"check_out" binding:"required"`
+	Guests   int                 `json:"guests"`
+	Email    string              `json:"email" binding:"required,email"`
+	Items    []CreateBookingItem `json:"items" binding:"required,min=1,dive"`
 }

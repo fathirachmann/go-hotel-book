@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"pkg/httpx"
+	"pkg/jwtx"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -16,18 +17,20 @@ import (
 
 type Handler struct {
 	svc *service.Service
+	tm  *jwtx.TokenManager
 }
 
-func NewHandler(s *service.Service) *Handler {
-	return &Handler{svc: s}
+func NewHandler(s *service.Service, tm *jwtx.TokenManager) *Handler {
+	return &Handler{svc: s, tm: tm}
 }
 
 type CreateRequest struct {
-	UserID       string               `json:"user_id" binding:"required"`
-	CheckInDate  time.Time            `json:"check_in_date" binding:"required"`
-	CheckOutDate time.Time            `json:"check_out_date" binding:"required"`
-	Items        []entity.BookingItem `json:"items" binding:"required"`
-	Email        string               `json:"email" binding:"required,email"`
+	UserID   string                     `json:"user_id" binding:"required"`
+	CheckIn  time.Time                  `json:"check_in" binding:"required"`
+	CheckOut time.Time                  `json:"check_out" binding:"required"`
+	Guests   int                        `json:"guests"`
+	Items    []entity.CreateBookingItem `json:"items" binding:"required,min=1,dive"`
+	Email    string                     `json:"email" binding:"required,email"`
 }
 
 type refundRequest struct {
@@ -42,11 +45,12 @@ func (h *Handler) PostBooking(c *gin.Context) {
 	}
 
 	b, err := h.svc.Create(c.Request.Context(), entity.CreateBookingInput{
-		UserID:       req.UserID,
-		CheckInDate:  req.CheckInDate,
-		CheckOutDate: req.CheckOutDate,
-		Items:        req.Items,
-		Email:        req.Email,
+		UserID:   req.UserID,
+		CheckIn:  req.CheckIn,
+		CheckOut: req.CheckOut,
+		Guests:   req.Guests,
+		Items:    req.Items,
+		Email:    req.Email,
 	})
 
 	if err != nil {
@@ -102,5 +106,62 @@ func (h *Handler) PostRefund(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, httpx.OK(booking))
+}
+
+// getUserID extracts user id from Authorization bearer token.
+func (h *Handler) getUserID(c *gin.Context) (string, error) {
+	if h.tm == nil {
+		return "", errors.New("auth not configured")
+	}
+	tok, err := jwtx.ExtractToken(c.Request)
+	if err != nil {
+		return "", err
+	}
+	claims, err := h.tm.VerifyToken(tok)
+	if err != nil {
+		return "", err
+	}
+	if claims == nil || claims.UserID == "" {
+		return "", errors.New("invalid token claims")
+	}
+	return claims.UserID, nil
+}
+
+// GetMyBookings lists bookings owned by the logged-in user.
+func (h *Handler) GetMyBookings(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	list, err := h.svc.ListMine(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, httpx.OK(list))
+}
+
+// GetBookingDetail returns a user's booking detail by ID.
+func (h *Handler) GetBookingDetail(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	id := c.Param("id")
+	booking, err := h.svc.GetMineByID(c.Request.Context(), id, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+		case err.Error() == "forbidden":
+			c.JSON(http.StatusForbidden, httpx.ErrorResponse{Error: "forbidden"})
+		default:
+			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
 	c.JSON(http.StatusOK, httpx.OK(booking))
 }
