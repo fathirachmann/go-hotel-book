@@ -3,7 +3,7 @@ WORKDIR /workspace
 
 COPY go.work ./
 COPY pkg ./pkg
-COPY services/payment ./services/payment
+COPY services ./services
 
 WORKDIR /workspace/services/payment
 RUN go mod download

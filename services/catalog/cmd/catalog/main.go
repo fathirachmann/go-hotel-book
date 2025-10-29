@@ -29,7 +29,7 @@ func main() {
 	h := handler.NewCatalogHandler(svc)
 
 	r := gin.Default()
-	r.GET("/healthz", func(c *gin.Context) {
+	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.POST("/internal/seed", h.Seed)

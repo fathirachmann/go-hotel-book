@@ -38,7 +38,7 @@ func main() {
 	r := gin.Default()
 	h := handler.NewHandler(svc)
 
-	r.GET("/healthz", func(c *gin.Context) {
+	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	h.BindRoutes(r)
