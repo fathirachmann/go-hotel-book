@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"auth/internal/entity"
 	"auth/internal/handler"
 	"auth/internal/repo"
 	"auth/internal/service"
@@ -25,7 +26,12 @@ func main() {
 		log.Fatalf("init database: %v", err)
 	}
 
+	if err := db.AutoMigrate(&entity.User{}); err != nil {
+		log.Fatalf("auto migrate: %v", err)
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
+
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET env is required")
 	}
@@ -36,10 +42,14 @@ func main() {
 	handler := handler.NewAuthHandler(authUsecase)
 
 	r := gin.Default()
+
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "auth"})
 	})
-	handler.UserRoutes(r)
+
+	g := r.Group("/api/v1/auth")
+	g.POST("/register", handler.HandleRegister)
+	g.POST("/login", handler.HandleLogin)
 
 	log.Printf("auth service listening on :%s", port)
 	if err := r.Run(":" + port); err != nil {
