@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrMissingBearer = errors.New("missing headers or bearer token malformed")
-	ErrInvalidToken  = errors.New("invalid token")
+	ErrMissingBearer = errors.New("missing token")
+	ErrInvalidToken  = errors.New("mnvalid token")
 )
 
 type TokenManager struct {
