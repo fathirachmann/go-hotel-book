@@ -7,6 +7,8 @@ type PaymentRepo interface {
 	Create(ctx context.Context, p *Payment) error
 	FindByOrderID(ctx context.Context, orderID string) (*Payment, error)
 	UpdateStatus(ctx context.Context, id string, status PaymentStatus, raw string, providerRef string) error
+	// ListByUserID returns all payments for bookings owned by the given user ID
+	ListByUserID(ctx context.Context, userID string) ([]Payment, error)
 }
 
 // RefundRepo defines storage operations for Refund entities.

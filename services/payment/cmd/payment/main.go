@@ -11,6 +11,7 @@ import (
 	"payment/internal/service"
 
 	"pkg/dbx"
+	"pkg/jwtx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,20 +21,23 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect payment database: %v", err)
 	}
-	// Dev reset: ensure schema matches new spec by dropping legacy tables
-	_ = db.Migrator().DropTable(&entity.Refund{}, &entity.Payment{})
-	_ = db.Exec("DROP TABLE IF EXISTS \"payment\".\"refunds\" CASCADE").Error
-	_ = db.Exec("DROP TABLE IF EXISTS \"payment\".\"payments\" CASCADE").Error
 	if err := db.AutoMigrate(&entity.Payment{}, &entity.Refund{}); err != nil {
 		log.Fatalf("auto migrate payment schema: %v", err)
 	}
 
 	pRepo := repo.NewPaymentRepository(db)
 	rRepo := repo.NewRefundRepository(db)
-	// Use internal Docker DNS for booking service without env
-	bClient := repo.NewBookingHTTPClient("")
+	// Booking client base URL from env (defaults inside ctor if empty)
+	bClient := repo.NewBookingHTTPClient(os.Getenv("BOOKING_BASE_URL"))
 	svc := service.NewPaymentService(pRepo, rRepo, bClient)
-	h := handler.NewHandler(svc)
+	// JWT
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret"
+	}
+	tm := jwtx.New(jwtSecret, "go-hotel-book")
+
+	h := handler.NewHandler(svc, tm)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {

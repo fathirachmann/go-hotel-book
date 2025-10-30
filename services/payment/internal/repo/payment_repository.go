@@ -44,3 +44,18 @@ func (r *paymentRepository) UpdateStatus(ctx context.Context, id string, status 
 	}
 	return nil
 }
+
+// ListByUserID returns payments joined with booking.bookings filtered by user ID
+func (r *paymentRepository) ListByUserID(ctx context.Context, userID string) ([]entity.Payment, error) {
+	var res []entity.Payment
+	// Use explicit schema qualification to avoid search_path issues
+	q := `SELECT p.*
+		  FROM "payment"."payments" p
+		  JOIN "booking"."bookings" b ON b.id = p.booking_id
+		  WHERE b.user_id = ?
+		  ORDER BY p.created_at DESC`
+	if err := r.db.WithContext(ctx).Raw(q, userID).Scan(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
+}

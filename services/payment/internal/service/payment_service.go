@@ -95,3 +95,8 @@ func (s *Service) Refund(ctx context.Context, paymentID string, amount int64) er
 	// Since UpdateStatus uses paymentID only, we cannot infer bookingID here without extra fetch; skip notify if unknown
 	return nil
 }
+
+// ListByUserID returns all payments for bookings owned by the given user ID.
+func (s *Service) ListByUserID(ctx context.Context, userID string) ([]entity.Payment, error) {
+	return s.payRepo.ListByUserID(ctx, userID)
+}
