@@ -1,0 +1,592 @@
+{
+    "info": {
+        "_postman_id": "9a6e3f27-8c67-41e4-9612-2f3d7b1b1b22",
+        "name": "Go Hotel Book",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Health",
+            "item": [
+                {
+                    "name": "Auth /health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{auth_base}}/health",
+                            "host": [
+                                "{{auth_base}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Catalog /health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{catalog_base}}/health",
+                            "host": [
+                                "{{catalog_base}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Booking /health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{booking_base}}/health",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Payment /health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{payment_base}}/health",
+                            "host": [
+                                "{{payment_base}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"full_name\": \"{{full_name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{auth_base}}/api/v1/auth/register",
+                            "host": [
+                                "{{auth_base}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "register"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{auth_base}}/api/v1/auth/login",
+                            "host": [
+                                "{{auth_base}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Catalog",
+            "item": [
+                {
+                    "name": "Seed",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{catalog_base}}/internal/seed",
+                            "host": [
+                                "{{catalog_base}}"
+                            ],
+                            "path": [
+                                "internal",
+                                "seed"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Availability",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{catalog_base}}/catalog/availability?check_in={{check_in}}&check_out={{check_out}}&guests={{guests}}",
+                            "host": [
+                                "{{catalog_base}}"
+                            ],
+                            "path": [
+                                "catalog",
+                                "availability"
+                            ],
+                            "query": [
+                                {
+                                    "key": "check_in",
+                                    "value": "{{check_in}}"
+                                },
+                                {
+                                    "key": "check_out",
+                                    "value": "{{check_out}}"
+                                },
+                                {
+                                    "key": "guests",
+                                    "value": "{{guests}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Booking",
+            "item": [
+                {
+                    "name": "Create Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"check_in\": \"{{check_in_iso}}\",\n  \"check_out\": \"{{check_out_iso}}\",\n  \"guests\": {{guests}},\n  \"full_name\": \"{{full_name}}\",\n  \"items\": [ { \"room_type_id\": {{room_type_id}}, \"quantity\": 1 } ]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{booking_base}}/bookings",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get My Bookings",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{booking_base}}/bookings",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Booking Detail",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{booking_base}}/bookings/{{booking_id}}",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings",
+                                "{{booking_id}}"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Booking",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{booking_base}}/bookings/{{booking_id}}",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings",
+                                "{{booking_id}}"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Check In Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{booking_base}}/bookings/{{booking_id}}/checkin",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings",
+                                "{{booking_id}}",
+                                "checkin"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Check Out Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{booking_base}}/bookings/{{booking_id}}/checkout",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "bookings",
+                                "{{booking_id}}",
+                                "checkout"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "[Internal] Update Booking Status",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"status\": \"PAID\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{booking_base}}/internal/bookings/{{booking_id}}/status",
+                            "host": [
+                                "{{booking_base}}"
+                            ],
+                            "path": [
+                                "internal",
+                                "bookings",
+                                "{{booking_id}}",
+                                "status"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Payment",
+            "item": [
+                {
+                    "name": "Create Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": {{amount}}\n}"
+                        },
+                        "url": {
+                            "raw": "{{payment_base}}/bookings/{{booking_id}}/pay",
+                            "host": [
+                                "{{payment_base}}"
+                            ],
+                            "path": [
+                                "bookings",
+                                "{{booking_id}}",
+                                "pay"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get My Payments",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{payment_base}}/payments",
+                            "host": [
+                                "{{payment_base}}"
+                            ],
+                            "path": [
+                                "payments"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Webhook: Midtrans Settlement",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"order_id\": \"BO-{{booking_id}}\",\n  \"transaction_status\": \"settlement\",\n  \"gross_amount\": \"{{amount}}\",\n  \"transaction_id\": \"trx_123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{payment_base}}/payments/midtrans/webhook",
+                            "host": [
+                                "{{payment_base}}"
+                            ],
+                            "path": [
+                                "payments",
+                                "midtrans",
+                                "webhook"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Refund Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"amount\": 500000\n}"
+                        },
+                        "url": {
+                            "raw": "{{payment_base}}/payments/{{payment_id}}/refund",
+                            "host": [
+                                "{{payment_base}}"
+                            ],
+                            "path": [
+                                "payments",
+                                "{{payment_id}}",
+                                "refund"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "auth_base",
+            "value": "http://localhost:8001"
+        },
+        {
+            "key": "catalog_base",
+            "value": "http://localhost:8002"
+        },
+        {
+            "key": "booking_base",
+            "value": "http://localhost:8003"
+        },
+        {
+            "key": "payment_base",
+            "value": "http://localhost:8004"
+        },
+        {
+            "key": "access_token",
+            "value": ""
+        },
+        {
+            "key": "email",
+            "value": "test@example.com"
+        },
+        {
+            "key": "password",
+            "value": "password"
+        },
+        {
+            "key": "full_name",
+            "value": "Test User"
+        },
+        {
+            "key": "check_in",
+            "value": "2025-11-05"
+        },
+        {
+            "key": "check_out",
+            "value": "2025-11-07"
+        },
+        {
+            "key": "check_in_iso",
+            "value": "2025-11-05T00:00:00Z"
+        },
+        {
+            "key": "check_out_iso",
+            "value": "2025-11-07T00:00:00Z"
+        },
+        {
+            "key": "guests",
+            "value": "2"
+        },
+        {
+            "key": "room_type_id",
+            "value": "1"
+        },
+        {
+            "key": "booking_id",
+            "value": ""
+        },
+        {
+            "key": "payment_id",
+            "value": ""
+        },
+        {
+            "key": "amount",
+            "value": "1500000"
+        }
+    ]
+}
