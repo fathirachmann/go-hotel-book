@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"payment/internal/service"
 	"pkg/httpx"
@@ -29,6 +30,10 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 	}
 	_, resp, err := h.svc.CreatePayment(c.Request.Context(), bookingID, req.Amount)
 	if err != nil {
+		if errors.Is(err, service.ErrAmountMismatch) {
+			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}

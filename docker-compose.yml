@@ -61,6 +61,7 @@ services:
       PORT: 8004
       DB_DSN: ${DB_DSN}
       DB_SCHEMA: payment
+      JWT_SECRET: ${JWT_SECRET}
       MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY}
       MIDTRANS_ENV: sandbox
     ports: ["8004:8004"]

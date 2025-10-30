@@ -24,7 +24,17 @@ type CreatePaymentResponse struct {
 	Amount      int64  `json:"amount"`
 }
 
+var ErrAmountMismatch = errors.New("amount does not match booking total")
+
 func (s *Service) CreatePayment(ctx context.Context, bookingID string, amount int64) (*entity.Payment, *CreatePaymentResponse, error) {
+	// Validate amount equals booking total
+	total, err := s.payRepo.GetBookingTotal(ctx, bookingID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if amount != total {
+		return nil, nil, ErrAmountMismatch
+	}
 	orderID := fmt.Sprintf("BO-%s", bookingID)
 	p := &entity.Payment{
 		BookingID: bookingID,

@@ -11,11 +11,12 @@ import (
 type Status string
 
 const (
-	StatusUnpaid    Status = "UNPAID"
-	StatusPaid      Status = "PAID"
-	StatusCancelled Status = "CANCELLED"
-	StatusCheckedIn Status = "CHECKED_IN"
-	StatusRefunded  Status = "REFUNDED"
+	StatusUnpaid     Status = "UNPAID"
+	StatusPaid       Status = "PAID"
+	StatusCancelled  Status = "CANCELLED"
+	StatusCheckedIn  Status = "CHECKED_IN"
+	StatusCheckedOut Status = "CHECKED_OUT"
+	StatusRefunded   Status = "REFUNDED"
 )
 
 type Booking struct {

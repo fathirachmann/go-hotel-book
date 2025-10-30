@@ -12,6 +12,7 @@ func (h *Handler) BindRoutes(r *gin.Engine) {
 		booking.GET("/:id", h.GetBookingDetail)
 		booking.DELETE("/:id", h.DeleteBooking)
 		booking.POST("/:id/checkin", h.PostCheckIn)
+		booking.POST("/:id/checkout", h.PostCheckOut)
 		booking.POST("/:id/refund", h.PostRefund)
 	}
 	internal := r.Group("/internal/bookings")

@@ -51,11 +51,21 @@ func (r *paymentRepository) ListByUserID(ctx context.Context, userID string) ([]
 	// Use explicit schema qualification to avoid search_path issues
 	q := `SELECT p.*
 		  FROM "payment"."payments" p
-		  JOIN "booking"."bookings" b ON b.id = p.booking_id
-		  WHERE b.user_id = ?
+		  JOIN "booking"."bookings" b ON b.id::text = p.booking_id
+		  WHERE b.user_id::text = ?
 		  ORDER BY p.created_at DESC`
 	if err := r.db.WithContext(ctx).Raw(q, userID).Scan(&res).Error; err != nil {
 		return nil, err
 	}
 	return res, nil
+}
+
+// GetBookingTotal returns the total price for a booking from the booking schema
+func (r *paymentRepository) GetBookingTotal(ctx context.Context, bookingID string) (int64, error) {
+	var total int64
+	q := `SELECT b.total FROM "booking"."bookings" b WHERE b.id::text = ? LIMIT 1`
+	if err := r.db.WithContext(ctx).Raw(q, bookingID).Scan(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
 }

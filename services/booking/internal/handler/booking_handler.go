@@ -86,6 +86,24 @@ func (h *Handler) PostCheckIn(c *gin.Context) {
 	c.JSON(http.StatusOK, httpx.OK(booking))
 }
 
+// PostCheckOut marks booking as checked-out. Requires it to be checked-in.
+func (h *Handler) PostCheckOut(c *gin.Context) {
+	bookingID := c.Param("id")
+	booking, err := h.svc.CheckOut(c.Request.Context(), bookingID)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, httpx.ErrorResponse{Error: "booking not found"})
+		case errors.Is(err, service.ErrBookingNotCheckedIn), errors.Is(err, service.ErrBookingAlreadyHandled):
+			c.JSON(http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, httpx.ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, httpx.OK(booking))
+}
+
 // PostRefund cancels booking and requests payment refund when eligible.
 func (h *Handler) PostRefund(c *gin.Context) {
 	bookingID := c.Param("id")

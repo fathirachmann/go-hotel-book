@@ -18,6 +18,8 @@ var (
 	ErrBookingNotPaid = errors.New("booking is not paid yet")
 	// ErrBookingAlreadyHandled is returned when booking already cancelled or checked-in.
 	ErrBookingAlreadyHandled = errors.New("booking already handled")
+	// ErrBookingNotCheckedIn is returned when trying to checkout before check-in.
+	ErrBookingNotCheckedIn = errors.New("booking is not checked-in")
 )
 
 func NewService(inv entity.InventoryRepo, repo entity.BookingRepo, pay entity.PaymentGateway) *Service {
@@ -145,6 +147,28 @@ func (s *Service) Refund(ctx context.Context, bookingID, reason string) (*entity
 		return nil, err
 	}
 	booking.Status = entity.StatusCancelled
+	return booking, nil
+}
+
+// CheckOut marks a booking as checked-out. Requires it to be checked-in first.
+func (s *Service) CheckOut(ctx context.Context, bookingID string) (*entity.Booking, error) {
+	booking, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, err
+	}
+
+	if booking.Status == entity.StatusCheckedOut {
+		return nil, ErrBookingAlreadyHandled
+	}
+
+	if booking.Status != entity.StatusCheckedIn {
+		return nil, ErrBookingNotCheckedIn
+	}
+
+	if err := s.repo.UpdateStatus(ctx, booking.ID, entity.StatusCheckedOut); err != nil {
+		return nil, err
+	}
+	booking.Status = entity.StatusCheckedOut
 	return booking, nil
 }
 
