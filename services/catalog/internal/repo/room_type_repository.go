@@ -12,7 +12,6 @@ import (
 type RoomTypeRepository interface {
 	List(ctx context.Context) ([]entity.RoomType, error)
 	GetByIDs(ctx context.Context, ids []uint) ([]entity.RoomType, error)
-	Create(ctx context.Context, roomType *entity.RoomType) error
 	Upsert(ctx context.Context, roomType *entity.RoomType) error
 	DeleteAll(ctx context.Context) error
 }
@@ -40,10 +39,6 @@ func (r *roomTypeRepository) GetByIDs(ctx context.Context, ids []uint) ([]entity
 		return nil, err
 	}
 	return out, nil
-}
-
-func (r *roomTypeRepository) Create(ctx context.Context, roomType *entity.RoomType) error {
-	return r.db.WithContext(ctx).Create(roomType).Error
 }
 
 func (r *roomTypeRepository) Upsert(ctx context.Context, roomType *entity.RoomType) error {
