@@ -34,7 +34,8 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
-	r.POST("/internal/seed", h.Seed)
+	// Replace seeder with room type creation endpoint
+	r.POST("/catalog/room-types", h.CreateRoomType)
 	r.GET("/catalog/availability", h.Availability)
 
 	port := os.Getenv("PORT")

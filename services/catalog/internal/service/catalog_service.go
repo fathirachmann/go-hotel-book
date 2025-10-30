@@ -158,3 +158,24 @@ func (s *CatalogService) Availability(ctx context.Context, from, to time.Time, g
 
 	return items, nil
 }
+
+// CreateRoomType creates a new room type entry.
+type CreateRoomTypeInput struct {
+	Name        string
+	Description string
+	BasePrice   int64
+	Capacity    int
+}
+
+func (s *CatalogService) CreateRoomType(ctx context.Context, in CreateRoomTypeInput) (*entity.RoomType, error) {
+	rt := &entity.RoomType{
+		Name:        in.Name,
+		Description: in.Description,
+		BasePrice:   in.BasePrice,
+		Capacity:    in.Capacity,
+	}
+	if err := s.roomTypes.Create(ctx, rt); err != nil {
+		return nil, err
+	}
+	return rt, nil
+}

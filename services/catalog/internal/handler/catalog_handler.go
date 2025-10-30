@@ -20,12 +20,29 @@ func NewCatalogHandler(svc *service.CatalogService) *CatalogHandler {
 }
 
 // Seed populates baseline catalog data for quick manual testing.
-func (h *CatalogHandler) Seed(c *gin.Context) {
-	if err := h.svc.SeedSample(c.Request.Context()); err != nil {
+// CreateRoomType adds a new room type with non-UUID auto-increment ID.
+func (h *CatalogHandler) CreateRoomType(c *gin.Context) {
+	var body struct {
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		BasePrice   int64  `json:"base_price" binding:"required,gt=0"`
+		Capacity    int    `json:"capacity" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rt, err := h.svc.CreateRoomType(c.Request.Context(), service.CreateRoomTypeInput{
+		Name:        body.Name,
+		Description: body.Description,
+		BasePrice:   body.BasePrice,
+		Capacity:    body.Capacity,
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"data": rt})
 }
 
 // Availability returns available room types for the requested range.
