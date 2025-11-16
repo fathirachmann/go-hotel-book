@@ -47,9 +47,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "auth"})
 	})
 
-	g := r.Group("/api/v1/auth")
-	g.POST("/register", handler.HandleRegister)
-	g.POST("/login", handler.HandleLogin)
+	handler.BindRoutes(r)
 
 	log.Printf("auth service listening on :%s", port)
 	if err := r.Run(":" + port); err != nil {
